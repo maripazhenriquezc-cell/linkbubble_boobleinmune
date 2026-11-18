@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IMMUNE DEFENSE: HARDCORE ARCADE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #05010a;
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+        .font-arcade {
+            font-family: 'Press Start 2P', monospace;
+        }
+        canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 40px rgba(236, 72, 153, 0.45);
+        }
+        .btn-arcade {
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.6);
+        }
+        .btn-arcade:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen bg-slate-950 p-2 select-none overflow-hidden">
+
+    <!-- Top Info Bar -->
+    <div class="w-full max-w-4xl flex justify-between items-center px-4 py-2.5 bg-slate-900/95 border-2 border-pink-500/60 rounded-t-xl text-xs sm:text-sm font-arcade">
+        <div class="text-pink-400">PUNTOS: <span id="scoreText" class="text-white">00000</span></div>
+        <div class="text-amber-400">TIEMPO: <span id="timerText" class="text-white">60</span>s</div>
+        <div class="text-cyan-400">NIVEL: <span id="levelText" class="text-white">1</span></div>
+        <div class="text-red-400">VIDAS: <span id="livesText" class="text-white">❤️❤️❤️</span></div>
+    </div>
+
+    <!-- Main Game Canvas Container -->
+    <div class="relative w-full max-w-4xl aspect-[4/3] bg-black border-x-2 border-b-2 border-pink-500/60 rounded-b-xl overflow-hidden shadow-2xl flex items-center justify-center">
+        <canvas id="gameCanvas" width="800" height="600" class="w-full h-full object-contain"></canvas>
+
+        <!-- Floating Points Notification -->
+        <div id="floatScore" class="absolute pointer-events-none opacity-0 transition-opacity font-arcade text-amber-300 text-sm font-bold z-20"></div>
+
+        <!-- Overlay Screen (Start / Game Over / Level Clear) -->
+        <div id="overlayScreen" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-30 transition-opacity">
+            <h1 id="overlayTitle" class="text-3xl sm:text-5xl font-extrabold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 mb-2 font-arcade drop-shadow-[0_4px_12px_rgba(236,72,153,0.6)]">
+                RESCATE INMUNE
+            </h1>
+            <p id="overlaySubtitle" class="text-cyan-300 text-xs sm:text-base mb-4 font-semibold tracking-wide">¡MODO DESAFÍO HARDCORE!</p>
+
+            <div id="overlayInfo" class="bg-slate-900/90 border border-slate-700/80 rounded-xl p-4 max-w-md text-left text-xs sm:text-sm space-y-2 mb-6 text-slate-300 shadow-inner">
+                <p class="text-pink-400 font-bold font-arcade mb-1">🔥 AMENAZAS DEL SISTEMA:</p>
+                <p>🧬 <strong>Bacterias hambrientas:</strong> Caen de inmediato de la cima y bajan por las escaleras persiguiéndote.</p>
+                <p>☣️ <strong>Gotas Ácidas:</strong> Caen verticalmente desde las toxinas del techo.</p>
+                <p>👾 <strong>Virus Zigzag:</strong> Vuelan velozmente de lado a lado.</p>
+                <p>⏱️ <strong>Tiempo Límite:</strong> Tienes segundos contados para salvar a la Célula T Auxiliar.</p>
+            </div>
+
+            <button id="startBtn" class="btn-arcade bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-arcade px-8 py-4 rounded-xl text-sm sm:text-base cursor-pointer border-2 border-pink-300 tracking-wider">
+                ¡INICIAR DESAFÍO!
+            </button>
+        </div>
+    </div>
+
+    <!-- Controls for Mobile & Desktop -->
+    <div class="w-full max-w-4xl mt-2 flex flex-col sm:flex-row items-center justify-between gap-2 px-2 text-slate-400 text-xs">
+        <div class="hidden sm:flex items-center gap-4">
+            <span><kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">←</kbd> <kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">→</kbd> Moverse</span>
+            <span><kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">↑</kbd> <kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">↓</kbd> Escaleras</span>
+            <span><kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">ESPACIO</kbd> / <kbd class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">W</kbd> Saltar</span>
+        </div>
+
+        <!-- Touch Controls for Mobile -->
+        <div class="flex sm:hidden justify-between w-full gap-2 mt-1">
+            <div class="grid grid-cols-3 gap-1 w-44">
+                <div></div>
+                <button id="btnUp" class="btn-arcade bg-slate-800 active:bg-slate-700 text-white p-3 rounded-lg text-lg flex items-center justify-center">↑</button>
+                <div></div>
+                <button id="btnLeft" class="btn-arcade bg-slate-800 active:bg-slate-700 text-white p-3 rounded-lg text-lg flex items-center justify-center">←</button>
+                <button id="btnDown" class="btn-arcade bg-slate-800 active:bg-slate-700 text-white p-3 rounded-lg text-lg flex items-center justify-center">↓</button>
+                <button id="btnRight" class="btn-arcade bg-slate-800 active:bg-slate-700 text-white p-3 rounded-lg text-lg flex items-center justify-center">→</button>
+            </div>
+            <div class="flex items-center">
+                <button id="btnJump" class="btn-arcade bg-pink-600 active:bg-pink-500 text-white p-4 rounded-xl text-base h-24 w-28 font-bold font-arcade">SALTO</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Web Audio Synth ---
+        class SoundFX {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            playTone(freq, duration, type = 'sine', gainVal = 0.1) {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e){}
+            }
+            jump() { this.playTone(340, 0.1, 'square', 0.1); }
+            climb() { this.playTone(220, 0.04, 'triangle', 0.05); }
+            point() { this.playTone(600, 0.12, 'sine', 0.12); }
+            smash() { this.playTone(130, 0.25, 'sawtooth', 0.25); }
+            powerup() {
+                [523, 659, 783, 1046].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 0.08, 'sine', 0.12), i * 50);
+                });
+            }
+            hurt() { this.playTone(85, 0.4, 'sawtooth', 0.35); }
+            win() {
+                [523, 659, 783, 1046, 1318].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 0.12, 'triangle', 0.2), i * 70);
+                });
+            }
+        }
+
+        const audio = new SoundFX();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+
+        // Game Variables
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let timeLeft = 60;
+        let timerInterval = null;
+        let isGameOver = false;
+        let isGameRunning = false;
+
+        let enemySpawnTimer = 0;
+        let flyingToxinTimer = 0;
+        let acidDropTimer = 0;
+
+        const scoreEl = document.getElementById('scoreText');
+        const timerEl = document.getElementById('timerText');
+        const levelEl = document.getElementById('levelText');
+        const livesEl = document.getElementById('livesText');
+        const overlay = document.getElementById('overlayScreen');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlaySubtitle = document.getElementById('overlaySubtitle');
+        const overlayInfo = document.getElementById('overlayInfo');
+        const startBtn = document.getElementById('startBtn');
+
+        // Input Controls
+        const keys = { left: false, right: false, up: false, down: false, jump: false };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = true;
+            if (e.code === 'Space') { keys.jump = true; e.preventDefault(); }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = false;
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = false;
+            if (e.code === 'Space') keys.jump = false;
+        });
+
+        const bindTouch = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const press = (e) => { e.preventDefault(); keys[keyName] = true; };
+            const release = (e) => { e.preventDefault(); keys[keyName] = false; };
+            btn.addEventListener('touchstart', press);
+            btn.addEventListener('touchend', release);
+            btn.addEventListener('mousedown', press);
+            btn.addEventListener('mouseup', release);
+        };
+        bindTouch('btnLeft', 'left');
+        bindTouch('btnRight', 'right');
+        bindTouch('btnUp', 'up');
+        bindTouch('btnDown', 'down');
+        bindTouch('btnJump', 'jump');
+
+        // Level Platforms & Ladders Architecture
+        let platforms = [];
+        let ladders = [];
+        let powerups = [];
+        let rescueTarget = { x: 380, y: 48, width: 36, height: 36 };
+        let bossVirus = { x: 45, y: 55, width: 64, height: 54 };
+
+        function setupLevelLayout() {
+            // Steel/Tissue Beam Platforms (Slanted correctly for rolling action)
+            platforms = [
+                { x1: 0, y1: 560, x2: 800, y2: 560 },             // Ground
+                { x1: 30, y1: 465, x2: 770, y2: 430 },            // Tier 1 (Rolls Left)
+                { x1: 30, y1: 320, x2: 770, y2: 355 },            // Tier 2 (Rolls Right)
+                { x1: 30, y1: 235, x2: 770, y2: 200 },            // Tier 3 (Rolls Left)
+                { x1: 30, y1: 125, x2: 770, y2: 155 },            // Tier 4 (Rolls Right)
+                { x1: 310, y1: 85, x2: 490, y2: 85 },             // Top Rescue Stand
+                { x1: 30, y1: 105, x2: 170, y2: 105 }             // Boss Platform
+            ];
+
+            ladders = [
+                { x: 710, y1: 439, y2: 560 },
+                { x: 220, y1: 457, y2: 560 },
+                { x: 90, y1: 323, y2: 460 },
+                { x: 530, y1: 344, y2: 442 },
+                { x: 670, y1: 209, y2: 350 },
+                { x: 280, y1: 224, y2: 332 },
+                { x: 110, y1: 129, y2: 227 },
+                { x: 610, y1: 147, y2: 213 },
+                { x: 400, y1: 85, y2: 140 }
+            ];
+
+            powerups = [
+                { x: 720, y: 400, active: true, type: 'syringe' },
+                { x: 70, y: 290, active: true, type: 'syringe' }
+            ];
+        }
+
+        function getPlatformY(x, p) {
+            const minX = Math.min(p.x1, p.x2);
+            const maxX = Math.max(p.x1, p.x2);
+            if (x < minX || x > maxX) return null;
+            const ratio = (x - p.x1) / (p.x2 - p.x1);
+            return p.y1 + ratio * (p.y2 - p.y1);
+        }
+
+        // --- Player (Macrophage Cell) ---
+        class Player {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = 70;
+                this.y = 520;
+                this.width = 26;
+                this.height = 26;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 3.6;
+                this.jumpForce = -9.2;
+                this.isGrounded = false;
+                this.isClimbing = false;
+                this.currentLadder = null;
+                this.invulnerableTimer = 0;
+                this.powerupTimer = 0;
+                this.climbSoundTimer = 0;
+            }
+
+            update() {
+                const centerX = this.x + this.width / 2;
+                const feetY = this.y + this.height;
+
+                // Ladder Detection
+                let touchingLadder = null;
+                for (let l of ladders) {
+                    if (Math.abs(centerX - l.x) < 14 && feetY >= l.y1 - 4 && this.y <= l.y2 + 4) {
+                        touchingLadder = l;
+                        break;
+                    }
+                }
+
+                if (touchingLadder) {
+                    if ((keys.up || keys.down) && !this.isClimbing) {
+                        this.isClimbing = true;
+                        this.currentLadder = touchingLadder;
+                        this.x = touchingLadder.x - this.width / 2;
+                        this.vx = 0;
+                    }
+                } else {
+                    this.isClimbing = false;
+                    this.currentLadder = null;
+                }
+
+                if (this.isClimbing) {
+                    this.vy = 0;
+                    if (keys.up) { this.vy = -2.8; this.playClimbSound(); }
+                    else if (keys.down) { this.vy = 2.8; this.playClimbSound(); }
+
+                    this.y += this.vy;
+
+                    if (this.y + this.height < this.currentLadder.y1) {
+                        this.y = this.currentLadder.y1 - this.height;
+                        this.isClimbing = false;
+                    }
+                    if (this.y + this.height > this.currentLadder.y2 + 4) {
+                        this.isClimbing = false;
+                    }
+
+                    if (keys.jump) {
+                        this.isClimbing = false;
+                        this.vy = this.jumpForce;
+                        audio.jump();
+                    }
+                } else {
+                    if (keys.left) this.vx = -this.speed;
+                    else if (keys.right) this.vx = this.speed;
+                    else this.vx = 0;
+
+                    if (keys.jump && this.isGrounded) {
+                        this.vy = this.jumpForce;
+                        this.isGrounded = false;
+                        audio.jump();
+                    }
+
+                    this.vy += 0.5; // Gravity
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    if (this.x < 10) this.x = 10;
+                    if (this.x + this.width > CANVAS_WIDTH - 10) this.x = CANVAS_WIDTH - 10 - this.width;
+
+                    // Platform Collisions
+                    this.isGrounded = false;
+                    if (this.vy >= 0) {
+                        platforms.forEach(p => {
+                            const pY = getPlatformY(this.x + this.width / 2, p);
+                            if (pY !== null && (this.y + this.height) >= pY - 5 && (this.y + this.height) <= pY + 12) {
+                                this.y = pY - this.height;
+                                this.vy = 0;
+                                this.isGrounded = true;
+                            }
+                        });
+                    }
+                }
+
+                if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+                if (this.powerupTimer > 0) this.powerupTimer--;
+            }
+
+            playClimbSound() {
+                this.climbSoundTimer++;
+                if (this.climbSoundTimer % 8 === 0) audio.climb();
+            }
+
+            draw() {
+                if (this.invulnerableTimer % 6 > 3) return;
+
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+
+                ctx.fillStyle = this.powerupTimer > 0 ? '#38bdf8' : '#ec4899';
+                ctx.beginPath();
+                ctx.arc(0, 0, 14, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (this.powerupTimer > 0) {
+                    ctx.strokeStyle = '#facc15';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(8, -8); ctx.lineTo(22, -22);
+                    ctx.stroke();
+                }
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-4, -2, 4, 0, Math.PI * 2);
+                ctx.arc(4, -2, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(-3, -2, 2, 0, Math.PI * 2);
+                ctx.arc(5, -2, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // --- Fast & Dynamic Bacteria (Guaranteed downhill physics) ---
+        class RollingBacteria {
+            constructor(x, y, levelSpeed) {
+                this.x = x;
+                this.y = y;
+                this.radius = 12;
+                this.speedMultiplier = 1 + levelSpeed * 0.2;
+                this.vx = 3.2 * this.speedMultiplier;
+                this.vy = 0;
+                this.rotation = 0;
+                this.isClimbingLadder = false;
+                this.currentLadder = null;
+                this.jumpScored = false;
+            }
+
+            update() {
+                if (this.isClimbingLadder) {
+                    this.y += 2.5 * this.speedMultiplier;
+                    if (this.y >= this.currentLadder.y2) {
+                        this.isClimbingLadder = false;
+                        this.vy = 0;
+                        // Choose direction after ladder descent
+                        this.vx = Math.random() < 0.5 ? 3.0 : -3.0;
+                    }
+                    return;
+                }
+
+                this.vy += 0.55; // Stronger Gravity
+                this.x += this.vx;
+                this.y += this.vy;
+
+                let onPlatform = false;
+                platforms.forEach(p => {
+                    const pY = getPlatformY(this.x, p);
+                    if (pY !== null && (this.y + this.radius) >= pY - 5 && (this.y + this.radius) <= pY + 12) {
+                        this.y = pY - this.radius;
+                        this.vy = 0;
+                        onPlatform = true;
+
+                        // Follow slope gradient smoothly
+                        if (p.x1 < p.x2) {
+                            if (p.y1 < p.y2) this.vx = Math.abs(this.vx);
+                            else if (p.y1 > p.y2) this.vx = -Math.abs(this.vx);
+                        }
+                    }
+                });
+
+                // Immediate Drop off platform edges (Prevent getting stuck anywhere)
+                if (!onPlatform && this.vy === 0) {
+                    this.vy = 2.0;
+                }
+
+                // Bounce off canvas walls
+                if (this.x - this.radius < 25) {
+                    this.x = 25 + this.radius;
+                    this.vx = Math.abs(this.vx);
+                }
+                if (this.x + this.radius > CANVAS_WIDTH - 25) {
+                    this.x = CANVAS_WIDTH - 25 - this.radius;
+                    this.vx = -Math.abs(this.vx);
+                }
+
+                // Smart Ladder AI Descent (Smart chance to take ladders down towards player)
+                if (!this.isClimbingLadder && Math.random() < 0.08) {
+                    ladders.forEach(l => {
+                        if (Math.abs(this.x - l.x) < 10 && Math.abs((this.y + this.radius) - l.y1) < 8) {
+                            this.isClimbingLadder = true;
+                            this.currentLadder = l;
+                            this.x = l.x;
+                        }
+                    });
+                }
+
+                this.rotation += this.vx * 0.12;
+
+                // Jump Points Bonus
+                if (!this.jumpScored && player.y + player.height < this.y - 8 &&
+                    Math.abs((player.x + player.width / 2) - this.x) < 20) {
+                    this.jumpScored = true;
+                    addScore(100, this.x, this.y);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#16a34a';
+                ctx.lineWidth = 2.5;
+                for (let i = 0; i < 6; i++) {
+                    let ang = (Math.PI / 3) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(ang) * this.radius, Math.sin(ang) * this.radius);
+                    ctx.lineTo(Math.cos(ang) * (this.radius + 4), Math.sin(ang) * (this.radius + 4));
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-3, -2, 3, 0, Math.PI * 2);
+                ctx.arc(4, -2, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.arc(-3, -2, 1.5, 0, Math.PI * 2);
+                ctx.arc(4, -2, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // --- Fast Horizontal Zigzag Virions ---
+        class FlyingToxin {
+            constructor(y, speed) {
+                this.x = CANVAS_WIDTH + 20;
+                this.baseY = y;
+                this.y = y;
+                this.speed = speed;
+                this.angle = 0;
+                this.radius = 11;
+            }
+
+            update() {
+                this.x -= this.speed;
+                this.angle += 0.1;
+                this.y = this.baseY + Math.sin(this.angle) * 35;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.fillStyle = '#a855f7';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#c084fc';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    let a = (Math.PI / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(a) * this.radius, Math.sin(a) * this.radius);
+                    ctx.lineTo(Math.cos(a) * (this.radius + 6), Math.sin(a) * (this.radius + 6));
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        // --- Vertical Acid Rain Drops ---
+        class AcidDrop {
+            constructor(x) {
+                this.x = x;
+                this.y = 10;
+                this.speed = 4.5 + Math.random() * 2;
+                this.radius = 6;
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+
+            draw() {
+                ctx.fillStyle = '#84cc16';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let player = new Player();
+        let enemies = [];
+        let toxins = [];
+        let acidDrops = [];
+
+        function addScore(amount, x, y) {
+            score += amount;
+            scoreEl.textContent = String(score).padStart(5, '0');
+            audio.point();
+
+            const fs = document.getElementById('floatScore');
+            fs.textContent = `+${amount}`;
+            fs.style.left = `${x}px`;
+            fs.style.top = `${y - 20}px`;
+            fs.style.opacity = '1';
+            setTimeout(() => { fs.style.opacity = '0'; }, 600);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (isGameRunning && !isGameOver) {
+                    timeLeft--;
+                    timerEl.textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        playerHurt("¡TIEMPO AGOTADO!");
+                    }
+                }
+            }, 1000);
+        }
+
+        // --- Core Loop Updates ---
+        function updateGame() {
+            if (isGameOver) return;
+
+            player.update();
+
+            // FAST ENEMY SPAWN FROM BOSS TOP (Guaranteed immediate roll down)
+            enemySpawnTimer++;
+            const spawnInterval = Math.max(50, 140 - level * 20);
+            if (enemySpawnTimer > spawnInterval) {
+                enemies.push(new RollingBacteria(bossVirus.x + 60, bossVirus.y + 35, level));
+                enemySpawnTimer = 0;
+            }
+
+            // Spawn Flying Virions
+            flyingToxinTimer++;
+            if (flyingToxinTimer > Math.max(100, 200 - level * 30)) {
+                toxins.push(new FlyingToxin(180 + Math.random() * 240, 3 + level * 0.6));
+                flyingToxinTimer = 0;
+            }
+
+            // Spawn Falling Acid Drops
+            acidDropTimer++;
+            if (acidDropTimer > Math.max(40, 110 - level * 15)) {
+                acidDrops.push(new AcidDrop(100 + Math.random() * 600));
+                acidDropTimer = 0;
+            }
+
+            // Check Powerup Collection
+            powerups.forEach(p => {
+                if (p.active) {
+                    const dist = Math.hypot((p.x) - (player.x + player.width / 2), (p.y) - (player.y + player.height / 2));
+                    if (dist < 20) {
+                        p.active = false;
+                        player.powerupTimer = 450;
+                        audio.powerup();
+                        addScore(300, p.x, p.y);
+                    }
+                }
+            });
+
+            // Update & Check Rolling Bacteria
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                e.update();
+
+                if (e.y > CANVAS_HEIGHT) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                const dist = Math.hypot(e.x - (player.x + player.width / 2), e.y - (player.y + player.height / 2));
+                if (dist < e.radius + 11) {
+                    if (player.powerupTimer > 0) {
+                        enemies.splice(i, 1);
+                        audio.smash();
+                        addScore(200, e.x, e.y);
+                    } else if (player.invulnerableTimer <= 0) {
+                        playerHurt();
+                    }
+                }
+            }
+
+            // Update & Check Flying Virions
+            for (let i = toxins.length - 1; i >= 0; i--) {
+                const t = toxins[i];
+                t.update();
+
+                if (t.x < -20) {
+                    toxins.splice(i, 1);
+                    continue;
+                }
+
+                const dist = Math.hypot(t.x - (player.x + player.width / 2), t.y - (player.y + player.height / 2));
+                if (dist < t.radius + 11 && player.invulnerableTimer <= 0) {
+                    if (player.powerupTimer > 0) {
+                        toxins.splice(i, 1);
+                        audio.smash();
+                        addScore(200, t.x, t.y);
+                    } else {
+                        playerHurt();
+                    }
+                }
+            }
+
+            // Update & Check Acid Drops
+            for (let i = acidDrops.length - 1; i >= 0; i--) {
+                const a = acidDrops[i];
+                a.update();
+
+                if (a.y > CANVAS_HEIGHT - 40) {
+                    acidDrops.splice(i, 1);
+                    continue;
+                }
+
+                const dist = Math.hypot(a.x - (player.x + player.width / 2), a.y - (player.y + player.height / 2));
+                if (dist < a.radius + 10 && player.invulnerableTimer <= 0) {
+                    if (player.powerupTimer > 0) {
+                        acidDrops.splice(i, 1);
+                    } else {
+                        playerHurt();
+                    }
+                }
+            }
+
+            // Rescue Victory Condition
+            if (player.x + player.width > rescueTarget.x &&
+                player.x < rescueTarget.x + rescueTarget.width &&
+                player.y + player.height > rescueTarget.y &&
+                player.y < rescueTarget.y + rescueTarget.height) {
+                levelWin();
+            }
+        }
+
+        function playerHurt(reason = null) {
+            audio.hurt();
+            lives--;
+            livesEl.textContent = '❤️'.repeat(Math.max(0, lives));
+            player.invulnerableTimer = 90;
+            player.reset();
+
+            if (lives <= 0) gameOver();
+        }
+
+        function levelWin() {
+            audio.win();
+            score += 1000 * level + timeLeft * 20;
+            scoreEl.textContent = String(score).padStart(5, '0');
+            level++;
+            levelEl.textContent = level;
+
+            isGameRunning = false;
+            clearInterval(timerInterval);
+
+            overlay.classList.remove('hidden');
+            overlayTitle.textContent = "¡CÉLULA RESCATADA!";
+            overlayTitle.className = "text-3xl sm:text-4xl font-extrabold text-cyan-400 mb-2 font-arcade";
+            overlaySubtitle.textContent = `¡Fase completada! Preparando Nivel ${level}...`;
+            overlayInfo.innerHTML = `
+                <p class="text-pink-400 font-bold font-arcade mb-1">⚡ ALERTA DE NIVEL SUPERIOR:</p>
+                <p>Bacterias más agresivas y mayor frecuencia de ácido cianídrico.</p>
+            `;
+            startBtn.textContent = `INICIAR NIVEL ${level}`;
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            isGameRunning = false;
+            clearInterval(timerInterval);
+
+            overlay.classList.remove('hidden');
+            overlayTitle.textContent = "¡SISTEMA DERROTADO!";
+            overlayTitle.className = "text-3xl sm:text-4xl font-extrabold text-red-500 mb-2 font-arcade";
+            overlaySubtitle.textContent = "La infección ha tomado el control";
+            overlayInfo.innerHTML = `
+                <p class="text-pink-400 font-bold font-arcade mb-1">📊 RESULTADOS FINALES:</p>
+                <p>Puntuación: <strong class="text-white">${score}</strong></p>
+                <p>Nivel Alcanzado: <strong class="text-white">${level}</strong></p>
+            `;
+            startBtn.textContent = "¡REINTENTAR!";
+            level = 1;
+        }
+
+        // --- Render Visuals ---
+        function render() {
+            ctx.fillStyle = '#05010a';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Draw Ladders
+            ladders.forEach(l => {
+                ctx.strokeStyle = '#06b6d4';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(l.x - 10, l.y1); ctx.lineTo(l.x - 10, l.y2);
+                ctx.moveTo(l.x + 10, l.y1); ctx.lineTo(l.x + 10, l.y2);
+                ctx.stroke();
+
+                for (let y = l.y1 + 6; y < l.y2; y += 12) {
+                    ctx.beginPath();
+                    ctx.moveTo(l.x - 10, y);
+                    ctx.lineTo(l.x + 10, y);
+                    ctx.stroke();
+                }
+            });
+
+            // Draw Platforms
+            platforms.forEach(p => {
+                ctx.strokeStyle = '#ec4899';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(p.x1, p.y1);
+                ctx.lineTo(p.x2, p.y2);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#f472b6';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(p.x1, p.y1 - 4);
+                ctx.lineTo(p.x2, p.y2 - 4);
+                ctx.stroke();
+            });
+
+            // Draw Powerups (Syringe)
+            powerups.forEach(p => {
+                if (p.active) {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(p.x - 4, p.y - 12, 8, 16);
+                    ctx.fillStyle = '#facc15';
+                    ctx.fillRect(p.x - 2, p.y - 16, 4, 4);
+                }
+            });
+
+            // Draw Boss Virus Monster (Top Left)
+            ctx.fillStyle = '#8b5cf6';
+            ctx.beginPath();
+            ctx.arc(bossVirus.x + 32, bossVirus.y + 25, 26, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 3;
+            for (let i = 0; i < 8; i++) {
+                let a = (Math.PI / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(bossVirus.x + 32 + Math.cos(a) * 26, bossVirus.y + 25 + Math.sin(a) * 26);
+                ctx.lineTo(bossVirus.x + 32 + Math.cos(a) * 34, bossVirus.y + 25 + Math.sin(a) * 34);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(bossVirus.x + 24, bossVirus.y + 20, 5, 0, Math.PI * 2);
+            ctx.arc(bossVirus.x + 40, bossVirus.y + 20, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Helper T-Cell (Target Cell)
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(rescueTarget.x + 18, rescueTarget.y + 18, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('T-Cell', rescueTarget.x + 18, rescueTarget.y + 22);
+
+            ctx.fillStyle = '#f43f5e';
+            ctx.font = '12px font-arcade';
+            ctx.fillText('HELP!', rescueTarget.x + 18, rescueTarget.y - 6);
+
+            // Render Entities
+            acidDrops.forEach(a => a.draw());
+            enemies.forEach(e => e.draw());
+            toxins.forEach(t => t.draw());
+            player.draw();
+        }
+
+        function gameLoop() {
+            if (isGameRunning) {
+                updateGame();
+                render();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            audio.init();
+            if (isGameOver) {
+                score = 0;
+                level = 1;
+                lives = 3;
+            }
+            isGameOver = false;
+            isGameRunning = true;
+
+            timeLeft = Math.max(35, 60 - level * 5);
+            timerEl.textContent = timeLeft;
+            scoreEl.textContent = String(score).padStart(5, '0');
+            levelEl.textContent = level;
+            livesEl.textContent = '❤️'.repeat(lives);
+
+            setupLevelLayout();
+            player.reset();
+            enemies = [];
+            toxins = [];
+            acidDrops = [];
+            enemySpawnTimer = 0;
+
+            overlay.classList.add('hidden');
+            startTimer();
+        }
+
+        startBtn.addEventListener('click', startGame);
+
+        setupLevelLayout();
+        render();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
